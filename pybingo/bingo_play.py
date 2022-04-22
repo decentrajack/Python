@@ -8,11 +8,15 @@ I = [16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]
 N = [31,32,33,34,35,36,37,38,39,40,41,42,43,44,45]
 G = [46,47,48,49,50,51,52,53,54,55,56,57,58,59,60]
 O = [61,62,63,64,65,66,67,68,69,70,71,72,73,74,75]
+
 from timeit import default_timer as timer
 from unittest import case
 import numpy as np
 
+
 config = {
+        # Modes are classic (BINGO 1-75) and modern (9x3 1-90)
+        'mode': 'classic',
         'win_by_row': False,
         'win_by_column':False,
         'win_by_diagonal':False,
@@ -23,7 +27,7 @@ class Board(object):
     _numbers_as_list = []
     _numbers = []
     def __init__(self):
-        self._numbers = self.generate()
+        self._numbers = self.generate(config['mode'])
         all = []
         for val in self._numbers:
             all = list(set(all + val))
@@ -37,55 +41,70 @@ class Board(object):
             td_numbers.append([x[i] for x in numbers_as_bingo])
 
         return td_numbers
-    def generate(self):
-        import random
-        from copy import deepcopy
-        _b = deepcopy(B)
-        _i = deepcopy(I)
-        _n = deepcopy(N)
-        _g = deepcopy(G)
-        _o = deepcopy(O)
-    
-        #pick 5 from each but N pick 4
-        b_choices = []
-        i_choices = []
-        n_choices = []
-        g_choices = []
-        o_choices = []
-    
-        for i in range(5):
+    def generate(self, mode):
+        if mode == 'classic':
+            import random
+            from copy import deepcopy
+            _b = deepcopy(B)
+            _i = deepcopy(I)
+            _n = deepcopy(N)
+            _g = deepcopy(G)
+            _o = deepcopy(O)
+
+            #pick 5 from each but N pick 4
+            b_choices = []
+            i_choices = []
+            n_choices = []
+            g_choices = []
+            o_choices = []
+
+            for i in range(5):
+
+                if i != 4:
+                    n_val = random.choice(_n)
+                    n_choices.append(n_val)
+                    _n.remove(n_val) 
+
+                b_val = random.choice(_b)
+                b_choices.append(b_val)
+                _b.remove(b_val)
+
+                i_val = random.choice(_i)
+                i_choices.append(i_val)
+                _i.remove(i_val)
+
+                g_val = random.choice(_g)
+                g_choices.append(g_val)
+                _g.remove(g_val)
+
+                o_val = random.choice(_o)
+                o_choices.append(o_val)
+                _o.remove(o_val)
+
+
+            b_choices.sort()
+            i_choices.sort()
+            n_choices.sort()
+            # assign the free space to the center
+            n_choices.insert(2, 0)
+
+            g_choices.sort()
+            o_choices.sort()
+            nums_as_td_array = self.to_td([b_choices, i_choices, n_choices, g_choices, o_choices])
+        else:
+            # modern 3x9 1-90
+            # 9 arrays of 1-10
+            # generate our lists for each unit
+            all_numbers = [] 
+            for tens in range(9):
+                dec = []
+                for units in range(9): 
+                    dec.append(int(f'{tens}{units+1}'))
+                dec.append(int(f'{tens+1}0'))
+                all_numbers.append(dec)
             
-            if i != 4:
-                n_val = random.choice(_n)
-                n_choices.append(n_val)
-                _n.remove(n_val) 
             
-            b_val = random.choice(_b)
-            b_choices.append(b_val)
-            _b.remove(b_val)
-    
-            i_val = random.choice(_i)
-            i_choices.append(i_val)
-            _i.remove(i_val)
-    
-            g_val = random.choice(_g)
-            g_choices.append(g_val)
-            _g.remove(g_val)
-    
-            o_val = random.choice(_o)
-            o_choices.append(o_val)
-            _o.remove(o_val)
-    
-    
-        b_choices.sort()
-        i_choices.sort()
-        n_choices.sort()
-        # assign the free space to the center
-        n_choices.insert(2, 0)
-    
-        g_choices.sort()
-        o_choices.sort()
-        nums_as_td_array = self.to_td([b_choices, i_choices, n_choices, g_choices, o_choices])
+            # now we need to grab 1-3 values from each 
         return nums_as_td_array
 
     def set_numbers(self, numbers):
@@ -99,15 +118,6 @@ class Board(object):
             return 'X' 
         else:
             return self._numbers[row][col] 
-    # def mark_number(self, val):
-    #     import numpy as np
-
-    #     array = np.array([[1, 1, 0, 0],
-    #               [0, 0, 1, 1],
-    #               [0, 0, 0, 0]])
-
-    #     solutions = np.argwhere(array == 1)
-    #     if val in self._numbers:
     def print_numbers(self):
         if self._numbers != {}:
             print('B - I - N - G - O')
@@ -172,12 +182,39 @@ class Board(object):
         #     return False
     def __str__(self):
         return f'{self._numbers}'
+class Sheet(object):
+    _boards = None
+    def __init__(self, board_count):
+
+        self._boards = Board.generate('modern')
+    def mark_number(self, val):
+        # we need to ask all boards for the number until one has it
+        for board in self._boards:
+            if board.mark_number(val):
+                return True
+        else:       
+            return False
+    
+    def check_bingo(self):
+        for board in self._boards:
+            if board.check_bingo():
+                return True
+        else:
+            return False
+    
+    def __str__(self):
+        return f'{self._boards}'
 class Player(object):
+    _sheet = None
     _board = None
     _name = ''
-    def __init__(self, name):
+    def __init__(self, name, boards=1):
         self._name = name
-        self._board = Board()
+        if config['mode'] == 'classic':
+            self._board = Board()
+        else:
+            # ask how many boards on the sheet
+            self._sheet = Sheet(board_count=boards)
     def mark_number(self, val):
         return self._board.mark_number(val)
     
